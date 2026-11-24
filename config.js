@@ -5,6 +5,7 @@
 // .env chargé par le process qui démarre l'agent — pm2, un service Windows,
 // etc., voir pacs-agent/README.md).
 import path from "path";
+import { fileURLToPath } from "url";
 
 function requis(nom) {
   const valeur = process.env[nom];
@@ -29,5 +30,6 @@ export const config = {
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 15000),
   heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS || 60000),
 
-  stateFile: process.env.STATE_FILE || path.resolve("pacs-agent/.state.json"),
+  // A cote de ce fichier, quel que soit le dossier d'ou l'agent est lance.
+  stateFile: process.env.STATE_FILE || path.join(path.dirname(fileURLToPath(import.meta.url)), ".state.json"),
 };

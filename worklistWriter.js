@@ -6,7 +6,12 @@
 // le retrait (annulation) n'a qu'à supprimer ce même fichier.
 import fs from "fs";
 import path from "path";
-import dcmjs from "dcmjs";
+import { createRequire } from "module";
+
+// Build CommonJS de dcmjs, pas `import dcmjs from "dcmjs"` : dcmjs 0.52.x
+// expose son build ESM en .js sans "type": "module", que Node refuse de
+// charger ("Unexpected token 'export'").
+const dcmjs = createRequire(import.meta.url)("dcmjs");
 
 const { DicomMetaDictionary, DicomDict } = dcmjs.data;
 
