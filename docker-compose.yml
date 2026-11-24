@@ -1,0 +1,74 @@
+# ============================================================
+#  Agent PACS de site — mise en service sur le PC Orthanc
+#
+#  Usage :   docker compose up -d --build
+#  Logs  :   docker compose logs -f
+#  Arrêt :   docker compose down
+#
+#  Prérequis : un fichier .env rempli dans ce dossier (voir .env.example).
+#  Il n'est JAMAIS inclus dans l'image — il est lu au démarrage.
+# ============================================================
+services:
+  pacs-agent:
+    build: .
+    image: pacs-agent:latest
+    container_name: pacs-agent
+
+    # Remplace pm2 : Docker redémarre l'agent s'il plante, et le relance au
+    # démarrage de la machine sans avoir besoin de `pm2 resurrect` ni de
+    # pm2-windows-startup.
+    restart: unless-stopped
+
+    # Jamais de `deploy.replicas` ni de scale : UNE seule instance par site.
+    # Deux agents écriraient le même WORKLIST_DIR et le même fichier d'état,
+    # avec des traitements en double à la clé.
+
+    env_file:
+      - .env
+
+    environment:
+      # Orthanc tourne sur l'HÔTE, pas dans ce conteneur : `localhost`
+      # désignerait le conteneur lui-même. `host.docker.internal` est le nom
+      # de l'hôte vu depuis un conteneur ; `extra_hosts` ci-dessous le rend
+      # aussi valable sous Linux, où il n'existe pas nativement.
+      # Écrase donc délibérément un ORTHANC_URL en localhost laissé dans .env.
+      ORTHANC_URL: ${ORTHANC_URL:-http://host.docker.internal:8042}
+      # Chemins internes au conteneur, pas ceux de l'hôte : c'est le montage
+      # ci-dessous qui fait le lien avec le vrai dossier d'Orthanc.
+      WORKLIST_DIR: /worklists
+      STATE_FILE: /data/.state.json
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    volumes:
+      # ⚠️ LE montage critique. `source` est le dossier worklists d'Orthanc
+      # SUR L'HÔTE : il doit valoir exactement le "Database" de
+      # worklists.json, sinon Orthanc relit un dossier que l'agent ne
+      # remplit pas et la worklist reste vide côté modalité, sans aucune
+      # erreur nulle part. Renseigné par WORKLIST_HOST_DIR dans .env.
+      - type: bind
+        source: ${WORKLIST_HOST_DIR:?WORKLIST_HOST_DIR manquant dans .env — voir .env.example}
+        target: /worklists
+        bind:
+          # Syntaxe longue uniquement pour ceci : en syntaxe courte, Docker
+          # CRÉE le dossier hôte s'il n'existe pas. Une faute de frappe dans
+          # le chemin donnerait alors un conteneur parfaitement sain écrivant
+          # des .wl dans un dossier vide que personne ne lit — la panne
+          # décrite ci-dessus, en silence. Ici, le démarrage échoue.
+          create_host_path: false
+      # Fichier d'état dans un volume nommé : sans ça, un `docker compose up
+      # --build` repartirait du curseur zéro et l'agent rejouerait tout
+      # l'historique des /changes d'Orthanc.
+      - type: volume
+        source: pacs-agent-state
+        target: /data
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pacs-agent-state:

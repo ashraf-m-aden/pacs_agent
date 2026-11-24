@@ -1,0 +1,24 @@
+# ⚠️ .env EN PREMIER, et c'est le point le plus important de ce fichier :
+# le Dockerfile fait `COPY . .`, donc sans cette ligne le jeton de site
+# (SITE_TOKEN) serait écrit en clair dans une couche de l'image — et une
+# couche se lit même si un Dockerfile ultérieur supprime le fichier. La
+# configuration du site est injectée au RUN (`env_file` du compose), jamais
+# à la construction.
+.env
+*.env
+
+# État d'exécution : propre à une machine, et monté en volume.
+.state.json
+
+# Reconstruits dans l'image (npm ci), et ceux de l'hôte sont des binaires
+# Windows que l'image Alpine ne peut pas exécuter.
+node_modules/
+
+# Inutile au runtime
+tests/
+.tmp-worklist/
+README.md
+.gitignore
+Dockerfile
+docker-compose.yml
+.dockerignore

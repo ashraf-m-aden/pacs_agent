@@ -13,7 +13,10 @@
   },
   "dependencies": {
     "axios": "^1.13.2",
-    "dcmjs": "^0.52.3",
+    "dcmjs": "^0.52.3"
+  },
+  "//devDependencies": "pm2 est un superviseur de l'HOTE, pas une dependance du code de l'agent : il reste installe par `npm install` (chemin pm2 du README) mais est ecarte de l'image Docker par `npm ci --omit=dev`, ou c'est `restart: unless-stopped` qui joue son role.",
+  "devDependencies": {
     "pm2": "^5.4.0"
   }
 }
