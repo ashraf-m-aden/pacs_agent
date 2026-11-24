@@ -14,6 +14,13 @@
 # Windows que l'image Alpine ne peut pas exécuter.
 node_modules/
 
+# L'historique git n'a rien à faire dans une image déployée sur les PC des
+# hôpitaux : il l'alourdit et diffuse les métadonnées du dépôt (auteurs,
+# messages de commit) dans un artefact distribué. Constaté en inspectant
+# l'image : sans cette ligne, `COPY . .` embarquait bien tout le .git.
+.git/
+.github/
+
 # Inutile au runtime
 tests/
 .tmp-worklist/

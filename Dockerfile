@@ -36,8 +36,13 @@ ENV NODE_ENV=production \
 # fichier d'état, réécrit à chaque cycle worklist. S'il cesse d'être touché,
 # l'agent ne synchronise plus (Totalis injoignable, jeton invalide, boucle
 # bloquée) — même quand le process, lui, est toujours vivant.
+#
+# Le fichier absent est traité à part : sur un conteneur neuf il n'apparaît
+# qu'après le premier cycle worklist abouti. Sans ce cas, `statSync` levait
+# une stack trace Node dans les logs de santé au lieu d'une phrase lisible
+# (constaté en inspectant l'image). Le verdict, lui, était déjà correct.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=45s --retries=3 \
-  CMD node -e "const f=process.env.STATE_FILE,m=require('fs').statSync(f).mtimeMs,a=Date.now()-m,l=3*Number(process.env.POLL_INTERVAL_MS||15000);if(a>l){console.error('etat fige depuis '+Math.round(a/1000)+'s');process.exit(1)}"
+  CMD node -e "const fs=require('fs'),f=process.env.STATE_FILE;if(!fs.existsSync(f)){console.error('aucun cycle worklist abouti depuis le demarrage — Totalis injoignable ou jeton invalide ?');process.exit(1)}const a=Date.now()-fs.statSync(f).mtimeMs,l=3*Number(process.env.POLL_INTERVAL_MS||15000);if(a>l){console.error('etat fige depuis '+Math.round(a/1000)+'s');process.exit(1)}"
 
 # `node agent.js` et non `npm start` : le script npm passe --env-file=.env,
 # or .env n'est volontairement PAS dans l'image (voir .dockerignore). La

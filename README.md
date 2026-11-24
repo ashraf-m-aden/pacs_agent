@@ -93,13 +93,18 @@ procédure de déploiement). `pm2` est en `devDependencies` — installé par
 ## Tests
 
 ```powershell
-npm run test:agent    # depuis le dépôt backend
+npm install   # dcmjs est nécessaire aux tests
+npm test      # = node --test
 ```
 
-Les tests vivent dans `tests/` et sont exécutés par le vitest du backend
-(`pacs-agent/**` est dans son `include`), pour ne pas imposer un second
-runner à un dossier qu'on copie sur les PC des hôpitaux. Ils ont besoin d'un
-`npm install` dans ce dossier, car `dcmjs` n'est plus déclaré par le backend.
+Runner intégré à Node (≥ 20), pas vitest : ce dépôt est cloné sur les PC
+Orthanc des hôpitaux, lui ajouter des dizaines de Mo de dépendances de test
+pour dix assertions serait un mauvais échange. Avant l'extraction du dépôt
+backend, c'était son vitest qui les exécutait.
+
+Les tests couvrent les fonctions pures (`worklistWriter.js`,
+`dicomDates.js`) — jamais `agent.js`, qui démarre ses boucles au chargement
+du module.
 
 ## Limites connues (circuit minimal, à affiner à l'usage)
 

@@ -3,14 +3,14 @@
 // Configuration de l'agent, lue depuis l'environnement. Lancé avec
 // `node pacs-agent/agent.js`, les variables sont à poser avant (ou via un
 // .env chargé par le process qui démarre l'agent — pm2, un service Windows,
-// etc., voir pacs-agent/README.md).
+// etc., voir README.md).
 import path from "path";
 import { fileURLToPath } from "url";
 
 function requis(nom) {
   const valeur = process.env[nom];
   if (!valeur) {
-    throw new Error(`Variable d'environnement ${nom} manquante — voir pacs-agent/README.md`);
+    throw new Error(`Variable d'environnement ${nom} manquante — voir README.md`);
   }
   return valeur;
 }
