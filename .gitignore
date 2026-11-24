@@ -1,0 +1,5 @@
+# Dossier copiable seul sur le PC Orthanc d un site : ce .gitignore
+# le protege meme hors du depot backend.
+.env
+node_modules/
+.state.json

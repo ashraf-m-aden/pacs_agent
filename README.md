@@ -8,9 +8,10 @@ complet, et [`docs/pacs-agent-deploiement-site.md`](../docs/pacs-agent-deploieme
 pour la procédure complète d'installation sur un site (y compris comment
 joindre un backend Totalis non exposé directement sur Internet).
 
-Ce dossier vit dans le dépôt backend pour réutiliser ses dépendances
-(`axios`, `dcmjs`) sans gérer un second `node_modules` — mais c'est un
-processus à part, lancé indépendamment du serveur Express.
+Ce dossier est rangé dans le dépôt backend mais il est **autonome** : son
+propre `package.json` (`axios`, `dcmjs`, `pm2`), son propre `node_modules`,
+aucun import du backend. Sur un site, on copie **uniquement ce dossier** sur
+le PC Orthanc — le serveur Totalis n'y est jamais installé.
 
 ## Prérequis
 
@@ -34,23 +35,20 @@ processus à part, lancé indépendamment du serveur Express.
 | `WORKLIST_DIR` | non | `C:/Orthanc/worklists` | Doit correspondre à `Database` dans `worklists.json` |
 | `POLL_INTERVAL_MS` | non | `15000` | Cadence worklist + études |
 | `HEARTBEAT_INTERVAL_MS` | non | `60000` | Cadence battement de cœur |
-| `STATE_FILE` | non | `pacs-agent/.state.json` | Curseur worklist + séquence `/changes` Orthanc |
+| `STATE_FILE` | non | `.state.json` à côté de `config.js` | Curseur worklist + séquence `/changes` Orthanc |
 
 ## Lancer
 
-```powershell
-$env:SITE_COMPANY_ID = "..."
-$env:SITE_TOKEN = "..."
-node pacs-agent/agent.js
-```
-
-## Vérifier le générateur de worklist sans toucher à Orthanc ni Totalis
+Depuis ce dossier (Node ≥ 20.12) :
 
 ```powershell
-node pacs-agent/scripts/smoke-test-worklist.js
+npm install
+Copy-Item .env.example .env   # puis remplir .env
+npm start                     # = node --env-file=.env agent.js
 ```
-Écrit un `.wl` d'exemple et le relit avec `dcmjs` pour confirmer qu'il est
-bien formé — utile en l'absence de DCMTK (`findscu`/`dcmdump`) sur la machine.
+
+En service continu : `npx pm2 start ecosystem.config.cjs` (voir la
+procédure de déploiement).
 
 ## Limites connues (circuit minimal, à affiner à l'usage)
 
