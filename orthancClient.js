@@ -39,6 +39,29 @@ export function creerClientOrthanc({ orthancUrl, orthancUser, orthancPassword })
       return [...modalites];
     },
 
+    /**
+     * AE Title DE L'APPAREIL qui a effectivement envoyé l'étude — à ne pas
+     * confondre avec `Modality` (le type d'examen, ci-dessus). Orthanc
+     * l'enregistre comme métadonnée par instance (`RemoteAET`) sur tout ce
+     * qui arrive en DICOM (pas sur un import REST/manuel, qui n'en a pas).
+     * Sert à detecter automatiquement les appareils du site sans jamais
+     * avoir à lire leur AE Title local dans un menu verrouille.
+     */
+    async getRemoteAetEtude(orthancStudyId) {
+      const { data: instances } = await http.get(`/studies/${orthancStudyId}/instances`);
+      const premiere = instances?.[0];
+      if (!premiere?.ID) return null;
+      try {
+        const { data } = await http.get(`/instances/${premiere.ID}/metadata/RemoteAET`);
+        const aet = typeof data === "string" ? data.trim() : "";
+        return aet || null;
+      } catch {
+        // Pas de metadata RemoteAET (ex: instance importee autrement qu'en
+        // DICOM) : ce n'est pas une erreur, juste rien a detecter.
+        return null;
+      }
+    },
+
     async getSystemInfo() {
       const { data } = await http.get("/system");
       return data;

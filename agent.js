@@ -60,6 +60,7 @@ export async function cycleEtudes() {
         const study = await orthanc.getStudy(changement.ID);
         const stats = await orthanc.getStudyStatistics(changement.ID);
         const modalites = await orthanc.getModalitesEtude(study.Series || []);
+        const remoteAet = await orthanc.getRemoteAetEtude(changement.ID);
 
         await totalis.signalerEtude({
           studyInstanceUID: study.MainDicomTags?.StudyInstanceUID,
@@ -68,6 +69,7 @@ export async function cycleEtudes() {
           patientId: study.PatientMainDicomTags?.PatientID,
           dateEtude: dateEtudeVersISO(study.MainDicomTags?.StudyDate),
           modalites,
+          remoteAet,
           nbSeries: stats.CountSeries,
           nbInstances: stats.CountInstances,
           tailleOctets: stats.DiskSize,
