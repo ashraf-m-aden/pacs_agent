@@ -2,16 +2,20 @@
 
 Fait le lien entre Totalis (cloud) et le PACS Orthanc installé sur le site.
 Trois boucles : publie la worklist dans Orthanc (fichiers `.wl`), remonte les
-études reçues vers Totalis, envoie un battement de cœur. Voir le doc de
-référence "Totalis HIS — Intégration PACS (Orthanc + OHIF)" pour le circuit
-complet, et [`docs/pacs-agent-deploiement-site.md`](../docs/pacs-agent-deploiement-site.md)
-pour la procédure complète d'installation sur un site (y compris comment
-joindre un backend Totalis non exposé directement sur Internet).
+études reçues vers Totalis, envoie un battement de cœur.
 
-Ce dossier est rangé dans le dépôt backend mais il est **autonome** : son
-propre `package.json` (`axios`, `dcmjs`, `pm2`), son propre `node_modules`,
-aucun import du backend. Sur un site, on copie **uniquement ce dossier** sur
-le PC Orthanc — le serveur Totalis n'y est jamais installé.
+**Dépôt autonome.** Aucun import du backend Totalis, ses propres dépendances
+(`axios`, `dcmjs`). Sur un site, on déploie **uniquement ce dépôt** sur le PC
+Orthanc — le serveur Totalis n'y est jamais installé.
+
+Documentation complémentaire, qui vit dans le dépôt **backend** parce qu'elle
+décrit autant le côté Totalis que l'agent :
+
+- `docs/pacs-agent-deploiement-site.md` — procédure complète d'installation
+  sur un site : génération du jeton dans Totalis, et comment joindre un
+  backend Totalis qui n'est pas exposé directement sur Internet.
+- Doc de référence « Totalis HIS — Intégration PACS (Orthanc + OHIF) » pour
+  le circuit fonctionnel complet.
 
 ## Prérequis
 
