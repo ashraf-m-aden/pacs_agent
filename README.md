@@ -45,6 +45,17 @@ décrit autant le côté Totalis que l'agent :
   disparaissent au redémarrage d'Orthanc : l'agent les redéclarerait au
   cycle suivant, mais entre les deux le site ne peut plus faire de C-ECHO et
   les tests de l'interface échouent sans raison apparente.
+- **Une IP et un port renseignés sur chaque modalité** dans Totalis (onglet
+  PACS de « Gérer le centre »). L'agent ne déclare dans `DicomModalities`
+  que les modalités qui ont les deux — et c'est cette déclaration qui
+  autorise l'appareil à lire sa worklist : Orthanc rejette par défaut le
+  C-FIND worklist d'un AE Title inconnu
+  (`DicomAlwaysAllowFindWorklist: false`). Un appareil sans IP/port reçoit
+  donc bien un `.wl`, mais ne peut pas aller le chercher — symptôme
+  classique de l'appareil qui « ne voit rien » alors que la worklist existe.
+  Vérifié le 2026-11-25 ; détail dans le dépôt backend,
+  `docs/pacs-simulation-locale.md` (piège n°2) et
+  `docs/pacs-agent-deploiement-site.md` §2 bis.
 
 ## Appareils (modalités) et C-ECHO
 
