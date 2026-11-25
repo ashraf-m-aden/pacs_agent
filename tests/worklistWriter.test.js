@@ -28,6 +28,7 @@ import {
   versDateHeureDicom,
   ecrireFichierWorklist,
   supprimerFichierWorklist,
+  SH_MAX,
 } from "../worklistWriter.js";
 import { dateEtudeVersISO } from "../dicomDates.js";
 
@@ -88,7 +89,7 @@ describe("écriture/suppression du fichier .wl", () => {
 
   it("écrit un DICOM valide et relisible, puis le supprime proprement", () => {
     const entree = {
-      accessionNumber: "TEST-CT-2026-000001",
+      accessionNumber: "TEST-CT26-000001",
       patient: { id: "P0001", nom: "Jean Dupont", dateNaissance: "1980-04-12", sexe: "M" },
       modaliteType: "CT",
       aeTitleCible: "CT_TEST",
@@ -121,5 +122,68 @@ describe("écriture/suppression du fichier .wl", () => {
 
   it("supprimerFichierWorklist ne lève pas si le fichier n'existe déjà plus", () => {
     assert.doesNotThrow(() => supprimerFichierWorklist(dir, "INEXISTANT"));
+  });
+});
+
+describe("garde-fou de longueur des tags SH", () => {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), ".tmp-worklist-sh");
+
+  const entree = (accessionNumber) => ({
+    accessionNumber,
+    patient: { id: "P0001", nom: "Jean Dupont", dateNaissance: "1980-04-12", sexe: "M" },
+    modaliteType: "CT",
+    aeTitleCible: "CT_TEST",
+    datePlanifiee: "2026-11-24T08:30:00",
+    libelle: "Scanner thoracique",
+  });
+
+  /** Capture console.warn le temps d'un appel. */
+  function avecWarnCapture(fn) {
+    const origine = console.warn;
+    const messages = [];
+    console.warn = (...args) => messages.push(args.join(" "));
+    try {
+      fn();
+    } finally {
+      console.warn = origine;
+    }
+    return messages;
+  }
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("ne dit rien pour un Accession Number de 16 caracteres ou moins", () => {
+    const messages = avecWarnCapture(() =>
+      ecrireFichierWorklist(dir, entree("TEST-CT26-000001")),
+    );
+    assert.equal(messages.length, 0);
+  });
+
+  it("avertit pour les trois tags SH quand le numero depasse 16, SANS tronquer", () => {
+    // Ancien format, encore present en base pour les demandes anterieures au
+    // 2026-11-25 : 20 caracteres.
+    const tropLong = "HPPDC-DX-2026-000001";
+    assert.ok(tropLong.length > SH_MAX);
+
+    const messages = avecWarnCapture(() => ecrireFichierWorklist(dir, entree(tropLong)));
+
+    // Un avertissement par tag concerne : AccessionNumber,
+    // RequestedProcedureID, ScheduledProcedureStepID.
+    assert.equal(messages.length, 3);
+    assert.ok(messages.some((m) => m.includes("(0008,0050)")));
+    assert.ok(messages.some((m) => m.includes("(0040,1001)")));
+    assert.ok(messages.some((m) => m.includes("(0040,0009)")));
+
+    // La valeur est ecrite TELLE QUELLE : tronquer ferait revenir l'appareil
+    // avec une chaine que Totalis ne retrouverait pas (comparaison exacte),
+    // et l'etude resterait non rapprochee.
+    const buffer = fs.readFileSync(path.join(dir, `${tropLong}.wl`));
+    const dicomData = dcmjs.data.DicomMessage.readFile(
+      buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+    );
+    const dataset = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomData.dict);
+    assert.equal(dataset.AccessionNumber, tropLong);
   });
 });

@@ -19,6 +19,53 @@ const { DicomMetaDictionary, DicomDict } = dcmjs.data;
 const SOP_CLASS_WORKLIST = "1.2.840.10008.5.1.4.31";
 const TRANSFER_SYNTAX_EXPLICIT_LE = "1.2.840.10008.1.2.1";
 
+/**
+ * Longueur maximale du VR `SH` (Short String) selon la norme DICOM. Trois
+ * tags ecrits ici en heritent, et tous les trois recoivent l'Accession
+ * Number : (0008,0050) AccessionNumber, (0040,1001) RequestedProcedureID et
+ * (0040,0009) ScheduledProcedureStepID.
+ */
+export const SH_MAX = 16;
+
+/**
+ * Previent si une valeur depasse son VR, SANS la tronquer — et c'est
+ * volontaire.
+ *
+ * Tronquer ici serait pire que ne rien faire : Totalis rapproche l'etude en
+ * comparant la chaine EXACTE (`findOne({ idCompany, accessionNumber })`, cf.
+ * `POST /pacs/agent/:companyId/etudes`). Un `.wl` portant une valeur deja
+ * tronquee ferait revenir l'appareil avec cette valeur, que Totalis ne
+ * retrouverait pas : l'examen resterait non rapproche. La bonne correction
+ * est en amont — depuis le 2026-11-25, `genererAccessionNumber` produit 16
+ * caracteres au plus et refuse d'en rendre un plus long.
+ *
+ * Ce garde-fou sert aux demandes creees AVANT ce correctif, dont le numero
+ * depasse encore : il rend visible dans les logs la cause d'un appareil qui
+ * « ne voit rien », ou d'une etude qui atterrit dans « Etudes a rapprocher »
+ * sans raison apparente.
+ */
+function avertirSiTropLong(dataset) {
+  const aVerifier = [
+    ["AccessionNumber (0008,0050)", dataset.AccessionNumber],
+    ["RequestedProcedureID (0040,1001)", dataset.RequestedProcedureID],
+    [
+      "ScheduledProcedureStepID (0040,0009)",
+      dataset.ScheduledProcedureStepSequence?.[0]?.ScheduledProcedureStepID,
+    ],
+  ];
+  for (const [tag, valeur] of aVerifier) {
+    if (typeof valeur === "string" && valeur.length > SH_MAX) {
+      console.warn(
+        `[worklist] ${tag} = "${valeur}" fait ${valeur.length} caracteres, ` +
+          `pour un VR SH plafonne a ${SH_MAX} par la norme DICOM. ` +
+          "L'appareil peut le tronquer en le lisant, et le rapprochement automatique " +
+          "echouera alors cote Totalis (comparaison de chaine exacte). " +
+          "Demande anterieure au format court du 2026-11-25.",
+      );
+    }
+  }
+}
+
 function pad2(n) {
   return String(n).padStart(2, "0");
 }
@@ -85,6 +132,7 @@ function cheminFichier(worklistDir, accessionNumber) {
 
 export function ecrireFichierWorklist(worklistDir, entree) {
   const dataset = construireDataset(entree);
+  avertirSiTropLong(dataset);
 
   const meta = {
     TransferSyntaxUID: TRANSFER_SYNTAX_EXPLICIT_LE,

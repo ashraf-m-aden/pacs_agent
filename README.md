@@ -182,3 +182,26 @@ du module.
   Orthanc 1.12 / API v32.
 - MPPS et Storage Commitment ne sont pas câblés (voir le plan d'étapes) :
   le statut d'un examen ne remonte pas depuis l'appareil.
+- **Demandes antérieures au 2026-11-25 : Accession Number trop long.**
+  Totalis produisait alors des numéros de 19 à 20 caractères, alors que les
+  trois tags qui les portent dans le `.wl` — `AccessionNumber` (0008,0050),
+  `RequestedProcedureID` (0040,1001) et `ScheduledProcedureStepID`
+  (0040,0009) — sont de VR `SH`, plafonné à 16 par la norme. Un appareil
+  conforme tronque la valeur en la lisant et la renvoie tronquée, si bien
+  que le rapprochement automatique côté Totalis (comparaison de chaîne
+  exacte) ne retrouve plus la demande : l'étude part dans « Études à
+  rapprocher » sans qu'aucune erreur n'apparaisse.
+
+  Le format a été raccourci côté Totalis (`CHUD-CT26-000123`, 16 caractères
+  au plus), mais les demandes déjà créées gardent leur numéro.
+  `worklistWriter.js` les signale désormais au moment d'écrire le `.wl` :
+
+  ```
+  [worklist] AccessionNumber (0008,0050) = "HPPDC-DX-2026-000001" fait 20 caracteres,
+  pour un VR SH plafonne a 16 par la norme DICOM. …
+  ```
+
+  L'agent **n'en tronque aucune** volontairement : écrire une valeur déjà
+  tronquée produirait exactement le non-appariement qu'on cherche à éviter.
+  Si un examen ancien ne se rapproche pas, cet avertissement est la première
+  chose à chercher dans les logs.
