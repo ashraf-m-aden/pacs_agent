@@ -66,5 +66,64 @@ export function creerClientOrthanc({ orthancUrl, orthancUser, orthancPassword })
       const { data } = await http.get("/system");
       return data;
     },
+
+    // ── Configuration DICOM des appareils du site ───────────────────
+    // C'est ici que le site devient capable de PARLER aux modalités :
+    // sans entrée dans `DicomModalities`, Orthanc refuse le C-ECHO. On
+    // passe par l'API REST plutôt que par orthanc.json — donc à chaud,
+    // sans redémarrer Orthanc ni éditer un fichier sous droits admin.
+    //
+    // ⚠️ Côté Orthanc, `DicomModalitiesInDatabase: true` est nécessaire
+    // pour que ces déclarations survivent à un redémarrage du serveur.
+
+    /** `?expand` rend la config complète quand la version d'Orthanc le sait. */
+    async getModalites() {
+      const { data } = await http.get("/modalities?expand");
+      return data;
+    },
+
+    /** Idempotent : rejouer un PUT identique ne change rien. */
+    async declarerModalite(nom, { aeTitle, host, port }) {
+      await http.put(`/modalities/${encodeURIComponent(nom)}`, {
+        AET: aeTitle,
+        Host: host,
+        Port: Number(port),
+      });
+    },
+
+    async supprimerModalite(nom) {
+      await http.delete(`/modalities/${encodeURIComponent(nom)}`);
+    },
+
+    /**
+     * C-ECHO — le « ping DICOM ». Ouvre une association DICOM et la
+     * referme : si ça passe, le triplet IP/port/AE Title est bon des deux
+     * côtés. Orthanc parle le DICOM à notre place, l'agent ne fait que du
+     * HTTP — c'est tout l'intérêt de passer par son API REST.
+     *
+     * Rend `{ ok, message }` plutôt que de lever : un appareil éteint est
+     * un RÉSULTAT de test, pas une panne de l'agent.
+     */
+    async echoModalite(nom) {
+      try {
+        await http.post(`/modalities/${encodeURIComponent(nom)}/echo`, {}, { timeout: 20000 });
+        return { ok: true, message: "C-ECHO réussi" };
+      } catch (e) {
+        // Orthanc répond 500 avec un corps JSON quand l'association
+        // échoue. `Details` d'abord, et c'est tout l'intérêt : vérifié sur
+        // un Orthanc 1.12, il porte le diagnostic exploitable
+        // (« connecting to AET "CT1": TCP Initialization Error … Timeout »)
+        // là où `Message` se limite à « Error in the network protocol ».
+        // Un technicien peut agir sur le premier, pas sur le second.
+        const donnees = e.response?.data;
+        const detail =
+          donnees?.Details ||
+          donnees?.Description ||
+          donnees?.Message ||
+          (typeof donnees === "string" && donnees ? donnees : null) ||
+          e.message;
+        return { ok: false, message: String(detail).slice(0, 400) };
+      }
+    },
   };
 }

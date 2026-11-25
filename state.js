@@ -9,6 +9,13 @@ import fs from "fs";
 const ETAT_INITIAL = {
   curseurWorklist: null,
   derniereSequenceChanges: 0,
+  // nomOrthanc → empreinte "aeTitle|host|port" des entrées DicomModalities
+  // que CET agent a déclarées dans Orthanc. C'est la seule façon de les
+  // distinguer de celles qu'un technicien du site a saisies à la main :
+  // Orthanc ne marque pas l'origine d'une entrée. Sans cette mémoire,
+  // l'agent risquerait de supprimer une configuration qui n'est pas à lui.
+  // Vide au premier démarrage : il ne gère donc rien, et ne supprime rien.
+  modalitesGerees: {},
 };
 
 export function lireEtat(cheminFichier) {

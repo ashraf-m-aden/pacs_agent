@@ -34,5 +34,27 @@ export function creerClientTotalis({ totalisUrl, companyId, siteToken }) {
       const { data } = await http.post("/heartbeat", payload);
       return data;
     },
+
+    /** Inventaire des appareils à refléter dans la config d'Orthanc. */
+    async getModalites() {
+      const { data } = await http.get("/modalites");
+      return data;
+    },
+
+    /**
+     * Commandes à exécuter en local. Totalis ne peut initier aucune
+     * connexion vers le site : c'est l'agent qui vient chercher le travail.
+     * Cet appel les passe EN_COURS côté serveur — elles ne sont donc pas
+     * resservies au cycle suivant, même si leur exécution échoue ici.
+     */
+    async getCommandes() {
+      const { data } = await http.get("/commandes");
+      return data;
+    },
+
+    async posterResultatCommande(id, { ok, message }) {
+      const { data } = await http.post(`/commandes/${id}/resultat`, { ok, message });
+      return data;
+    },
   };
 }

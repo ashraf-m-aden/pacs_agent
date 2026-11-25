@@ -1,8 +1,22 @@
 # Agent PACS (site)
 
 Fait le lien entre Totalis (cloud) et le PACS Orthanc installé sur le site.
-Trois boucles : publie la worklist dans Orthanc (fichiers `.wl`), remonte les
-études reçues vers Totalis, envoie un battement de cœur.
+
+Cinq boucles, toutes en connexions **sortantes** — Totalis ne peut initier
+aucune connexion vers le réseau de l'hôpital :
+
+| Boucle | Cadence | Rôle |
+|---|---|---|
+| `worklist` | `POLL_INTERVAL_MS` (15 s) | publie la worklist dans Orthanc (fichiers `.wl`) |
+| `études` | 15 s | remonte vers Totalis les études reçues (`/changes` d'Orthanc) |
+| `commandes` | 15 s | exécute les actions demandées depuis l'interface (C-ECHO) |
+| `modalités` | `HEARTBEAT_INTERVAL_MS` (60 s) | reflète l'inventaire des appareils dans la config DICOM d'Orthanc |
+| `heartbeat` | 60 s | signale que l'agent est vivant |
+
+L'agent **ne parle jamais DICOM lui-même** : il passe par l'API REST
+d'Orthanc (port 8042), qui parle le DICOM à sa place. C'est ce qui lui
+permet de déclarer des appareils et de lancer des C-ECHO sans embarquer de
+pile DICOM.
 
 **Dépôt autonome.** Aucun import du backend Totalis, ses propres dépendances
 (`axios`, `dcmjs`). Sur un site, on déploie **uniquement ce dépôt** sur le PC
@@ -26,6 +40,32 @@ décrit autant le côté Totalis que l'agent :
 - Un jeton d'agent pour l'établissement : `POST /api/company/:companyId/pacs-agent/token`
   (rôle `ADMINISTRATEUR` ou `SUPER ADMIN`) — le jeton n'est montré qu'une
   fois, à copier dans `SITE_TOKEN` tout de suite.
+- **`"DicomModalitiesInDatabase": true`** dans `orthanc.json` pour la boucle
+  `modalités`. Sans ça, les appareils que l'agent déclare par l'API REST
+  disparaissent au redémarrage d'Orthanc : l'agent les redéclarerait au
+  cycle suivant, mais entre les deux le site ne peut plus faire de C-ECHO et
+  les tests de l'interface échouent sans raison apparente.
+
+## Appareils (modalités) et C-ECHO
+
+L'inventaire des appareils est tenu **dans Totalis** (onglet PACS de « Gérer
+le centre ») ; l'agent le reflète dans la configuration DICOM d'Orthanc par
+`PUT`/`DELETE /modalities/{nom}`, donc à chaud, sans éditer `orthanc.json`
+ni redémarrer Orthanc.
+
+⚠️ **L'agent ne touche que les entrées qu'il a lui-même créées.** Orthanc ne
+marque pas l'origine d'une entrée de `DicomModalities` : l'agent mémorise
+donc les siennes dans son fichier d'état (`modalitesGerees`). Une modalité
+configurée à la main par un technicien du site n'est jamais ni écrasée ni
+supprimée — et au tout premier démarrage, l'état étant vide, l'agent ne gère
+rien et ne supprime donc rien.
+
+Le **C-ECHO** (« ping DICOM ») n'est pas déclenché par l'agent de lui-même :
+un utilisateur clique « Tester » dans Totalis, ce qui dépose une commande
+que la boucle `commandes` vient chercher. Le verdict est reposté et s'affiche
+sur la fiche de l'appareil. C'est le seul moyen de vérifier qu'un triplet
+IP / port / AE Title est correct, puisque Totalis n'a aucune route réseau
+vers le LAN de l'hôpital.
 
 ## Variables d'environnement
 
@@ -39,7 +79,7 @@ décrit autant le côté Totalis que l'agent :
 | `WORKLIST_DIR` | non | `C:/Orthanc/worklists` | Doit correspondre à `Database` dans `worklists.json` |
 | `POLL_INTERVAL_MS` | non | `15000` | Cadence worklist + études |
 | `HEARTBEAT_INTERVAL_MS` | non | `60000` | Cadence battement de cœur |
-| `STATE_FILE` | non | `.state.json` à côté de `config.js` | Curseur worklist + séquence `/changes` Orthanc |
+| `STATE_FILE` | non | `.state.json` à côté de `config.js` | Curseur worklist, séquence `/changes` Orthanc, et modalités déclarées par l'agent |
 
 ## Lancer
 
@@ -118,3 +158,16 @@ du module.
   vers Totalis est simplement relogué au prochain cycle (15 s plus tard),
   sans backoff exponentiel séparé — suffisant pour valider le circuit, à
   muscler avant un vrai déploiement.
+- Si le **résultat** d'une commande n'arrive pas à remonter (coupure juste
+  après le C-ECHO), la commande reste `EN_COURS` côté Totalis puis expire :
+  l'utilisateur doit relancer le test. Le C-ECHO, lui, a bien eu lieu.
+- Le message d'échec d'un C-ECHO vient d'Orthanc tel quel. Sous Windows, sa
+  partie localisée peut arriver mal encodée (« L­ƒp¢tion a r¢si »), le
+  diagnostic utile restant lisible en tête (`TCP Initialization Error …
+  Timeout`). Cosmétique, côté Orthanc, pas côté agent.
+- La boucle `modalités` ne détecte pas une entrée `DicomModalities` modifiée
+  à la main **si** la version d'Orthanc ne répond pas à `GET /modalities?expand`
+  (elle retombe alors sur l'empreinte mémorisée). Vérifié présent sur
+  Orthanc 1.12 / API v32.
+- MPPS et Storage Commitment ne sont pas câblés (voir le plan d'étapes) :
+  le statut d'un examen ne remonte pas depuis l'appareil.
