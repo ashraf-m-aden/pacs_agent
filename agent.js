@@ -2,18 +2,20 @@
 //
 // Point d'entrée de l'agent de synchronisation PACS d'un site — connexions
 // SORTANTES uniquement (vers Totalis et vers Orthanc en local), comme
-// l'exige le doc PACS. Cinq boucles indépendantes : worklist descendante,
+// l'exige le doc PACS. Six boucles indépendantes : worklist descendante,
 // études montantes, configuration des modalités dans Orthanc, commandes
-// déposées par Totalis, battement de cœur.
+// déposées par Totalis, découverte des appareils refusés (log d'Orthanc),
+// battement de cœur.
 import { config } from "./config.js";
 import { creerClientTotalis } from "./totalisClient.js";
 import { creerClientOrthanc } from "./orthancClient.js";
 import { ecrireFichierWorklist, supprimerFichierWorklist } from "./worklistWriter.js";
 import { calculerSyncModalites, lireReponseModalites } from "./modalitesSync.js";
+import { analyserLignes, agregerRejets, lireNouveautes } from "./orthancLog.js";
 import { lireEtat, ecrireEtat } from "./state.js";
 import { dateEtudeVersISO } from "./dicomDates.js";
 
-const VERSION_AGENT = "0.2.0";
+const VERSION_AGENT = "0.3.0";
 
 const totalis = creerClientTotalis(config);
 const orthanc = creerClientOrthanc(config);
@@ -185,6 +187,32 @@ export async function cycleCommandes() {
   }
 }
 
+// ── Appareils refusés : log d'Orthanc → Totalis ─────────────────────────
+// Un appareil non déclaré est refusé avant d'avoir envoyé quoi que ce soit :
+// seul le log d'Orthanc garde sa trace (voir orthancLog.js). On ne remonte
+// que AE Title, IP, type de requête et dates. L'envoi part à chaque cycle,
+// même vide : Totalis sait ainsi que la lecture du log fonctionne, et voit
+// passer les lignes non comprises (format changé par une mise à jour).
+export async function cycleAeDecouverts() {
+  const { texte, curseur } = lireNouveautes(config.orthancLogDir, etat.curseurLogOrthanc);
+  const { rejets, nonComprises } = analyserLignes(texte);
+  const aeDecouverts = agregerRejets(rejets);
+
+  await totalis.signalerAeDecouverts({ aeDecouverts, lignesNonComprises: nonComprises });
+
+  // Curseur avancé seulement après l'envoi : un Totalis injoignable fait
+  // relire le même morceau au cycle suivant, rien n'est perdu.
+  etat.curseurLogOrthanc = curseur;
+  ecrireEtat(config.stateFile, etat);
+
+  if (aeDecouverts.length) {
+    log(`appareils refusés par Orthanc : ${aeDecouverts.map((a) => `${a.aeTitle}@${a.ip}`).join(", ")}`);
+  }
+  if (nonComprises) {
+    log(`log Orthanc : ${nonComprises} ligne(s) de rejet au format inconnu — découverte peut-être aveugle`);
+  }
+}
+
 // ── Battement de cœur ───────────────────────────────────────────────────
 export async function cycleHeartbeat() {
   let versionOrthanc;
@@ -229,5 +257,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   // le relire toutes les 15 s n'apporterait rien et ferait écrire Orthanc
   // pour rien. Il suit donc la cadence lente du battement de cœur.
   planifier(cycleModalites, config.heartbeatIntervalMs, "modalités");
+  if (config.orthancLogDir) {
+    planifier(cycleAeDecouverts, config.heartbeatIntervalMs, "appareils refusés");
+  } else {
+    log("ORTHANC_LOG_DIR non défini : découverte des appareils refusés désactivée");
+  }
   planifier(cycleHeartbeat, config.heartbeatIntervalMs, "heartbeat");
 }

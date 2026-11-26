@@ -52,6 +52,12 @@ export function creerClientTotalis({ totalisUrl, companyId, siteToken }) {
       return data;
     },
 
+    /** Appareils refusés par Orthanc, relevés dans son log. */
+    async signalerAeDecouverts({ aeDecouverts, lignesNonComprises }) {
+      const { data } = await http.post("/ae-decouverts", { aeDecouverts, lignesNonComprises });
+      return data;
+    },
+
     async posterResultatCommande(id, { ok, message }) {
       const { data } = await http.post(`/commandes/${id}/resultat`, { ok, message });
       return data;

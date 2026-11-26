@@ -16,6 +16,10 @@ const ETAT_INITIAL = {
   // l'agent risquerait de supprimer une configuration qui n'est pas à lui.
   // Vide au premier démarrage : il ne gère donc rien, et ne supprime rien.
   modalitesGerees: {},
+  // Où la lecture du log d'Orthanc s'est arrêtée : { fichier, position }.
+  // Sans lui, chaque redémarrage de l'agent remonterait à nouveau tous les
+  // rejets déjà signalés.
+  curseurLogOrthanc: null,
 };
 
 export function lireEtat(cheminFichier) {

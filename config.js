@@ -27,6 +27,11 @@ export const config = {
   // Dossier "Database" du plugin Worklists d'Orthanc (worklists.json).
   worklistDir: process.env.WORKLIST_DIR || "C:/Orthanc/worklists",
 
+  // Dossier des fichiers de log d'Orthanc, lu pour découvrir les appareils
+  // refusés (orthancLog.js). Optionnel : absent, la découverte est
+  // désactivée et rien d'autre ne change.
+  orthancLogDir: process.env.ORTHANC_LOG_DIR || undefined,
+
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS || 15000),
   heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS || 60000),
 

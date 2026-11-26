@@ -2,7 +2,7 @@
 
 Fait le lien entre Totalis (cloud) et le PACS Orthanc installé sur le site.
 
-Cinq boucles, toutes en connexions **sortantes** — Totalis ne peut initier
+Six boucles, toutes en connexions **sortantes** — Totalis ne peut initier
 aucune connexion vers le réseau de l'hôpital :
 
 | Boucle | Cadence | Rôle |
@@ -11,6 +11,7 @@ aucune connexion vers le réseau de l'hôpital :
 | `études` | 15 s | remonte vers Totalis les études reçues (`/changes` d'Orthanc) |
 | `commandes` | 15 s | exécute les actions demandées depuis l'interface (C-ECHO) |
 | `modalités` | `HEARTBEAT_INTERVAL_MS` (60 s) | reflète l'inventaire des appareils dans la config DICOM d'Orthanc |
+| `appareils refusés` | 60 s | relève dans le log d'Orthanc les appareils qu'il a refusés (si `ORTHANC_LOG_DIR` est défini) |
 | `heartbeat` | 60 s | signale que l'agent est vivant |
 
 L'agent **ne parle jamais DICOM lui-même** : il passe par l'API REST
@@ -93,6 +94,46 @@ sur la fiche de l'appareil. C'est le seul moyen de vérifier qu'un triplet
 IP / port / AE Title est correct, puisque Totalis n'a aucune route réseau
 vers le LAN de l'hôpital.
 
+## Appareils refusés : découverte par le log d'Orthanc
+
+Un appareil qu'Orthanc ne connaît pas est **refusé avant d'avoir envoyé quoi
+que ce soit** (lecture de worklist non autorisée) : il n'apparaît donc ni
+dans une étude reçue, ni dans l'API REST d'Orthanc. Sa seule trace est le log
+d'Orthanc, au moment du refus :
+
+```
+DICOM authorization rejected  for AET FUJI-SIM on IP 127.0.0.1: This AET is not listed in configuration option "DicomModalities"
+Rejected FindWorklist request from remote DICOM modality with AET "FUJI-SIM" and hostname "127.0.0.1"
+```
+
+La boucle `appareils refusés` lit ce log là où elle s'était arrêtée (curseur
+`curseurLogOrthanc` du fichier d'état), regroupe les refus par AE Title + IP
+et les envoie à Totalis, qui les affiche dans l'onglet PACS comme
+**candidats** à enregistrer — jamais comme modalités : enregistrer un
+appareil reste une décision humaine.
+
+- **Ce qui est remonté** : AE Title, IP, type de requête refusée
+  (`FindWorklist`, `Store`, `Echo`…) et dates. Rien d'autre du log, qui peut
+  contenir des données patient.
+- **Ce que le log ne donne pas** : ni le type d'examen, ni le port d'écoute
+  de l'appareil (le port visible est un port source éphémère). Ils se
+  saisissent à l'enregistrement. Le port ne sert qu'au C-ECHO et aux envois
+  d'Orthanc *vers* l'appareil : sans lui, l'appareil peut déjà lire sa
+  worklist et envoyer ses images.
+- **Le log doit être sur disque.** Sous Windows c'est le cas par défaut
+  (`C:\Program Files\Orthanc Server\Logs`) — le compte qui fait tourner
+  l'agent doit pouvoir lire ce dossier. Sur un Mac lancé à la main, Orthanc
+  doit être démarré avec `--logdir=<dossier>`.
+- **Dépend du texte du log**, qu'une mise à jour d'Orthanc peut changer.
+  Toute ligne qui parle de rejet sans correspondre au format connu est
+  comptée et remontée (`lignesNonComprises`) : si ce compteur grimpe dans
+  Totalis, la découverte est devenue aveugle.
+- Le fichier lu est le plus récent **par date de modification** ; au
+  redémarrage d'Orthanc (nouveau fichier), l'agent termine d'abord l'ancien.
+
+Sans `ORTHANC_LOG_DIR`, la boucle est désactivée (une ligne le dit au
+démarrage) et rien d'autre ne change.
+
 ## Variables d'environnement
 
 | Variable | Obligatoire | Défaut | Rôle |
@@ -103,9 +144,10 @@ vers le LAN de l'hôpital.
 | `ORTHANC_URL` | non | `http://localhost:8042` | API REST d'Orthanc (pas le port DICOM 4242) |
 | `ORTHANC_USER` / `ORTHANC_PASSWORD` | non | — | Si l'authentification Orthanc est activée |
 | `WORKLIST_DIR` | non | `C:/Orthanc/worklists` | Doit correspondre à `Database` dans `worklists.json` |
+| `ORTHANC_LOG_DIR` | non | — | Dossier des logs d'Orthanc, pour découvrir les appareils refusés. Absent : découverte désactivée |
 | `POLL_INTERVAL_MS` | non | `15000` | Cadence worklist + études |
 | `HEARTBEAT_INTERVAL_MS` | non | `60000` | Cadence battement de cœur |
-| `STATE_FILE` | non | `.state.json` à côté de `config.js` | Curseur worklist, séquence `/changes` Orthanc, et modalités déclarées par l'agent |
+| `STATE_FILE` | non | `.state.json` à côté de `config.js` | Curseur worklist, séquence `/changes` Orthanc, modalités déclarées par l'agent, position de lecture du log d'Orthanc |
 
 ## Lancer
 

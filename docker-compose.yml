@@ -37,6 +37,7 @@ services:
       # ci-dessous qui fait le lien avec le vrai dossier d'Orthanc.
       WORKLIST_DIR: /worklists
       STATE_FILE: /data/.state.json
+      # ORTHANC_LOG_DIR: /orthanc-logs   # avec le montage des logs, plus bas
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -57,6 +58,16 @@ services:
           # des .wl dans un dossier vide que personne ne lit — la panne
           # décrite ci-dessus, en silence. Ici, le démarrage échoue.
           create_host_path: false
+      # Logs d'Orthanc, en LECTURE SEULE, pour la découverte des appareils
+      # refusés (README, « Appareils refusés »). Optionnel : décommenter ce
+      # bloc ET la ligne ORTHANC_LOG_DIR de `environment` ci-dessus, et
+      # renseigner ORTHANC_LOG_HOST_DIR dans .env.
+      # - type: bind
+      #   source: ${ORTHANC_LOG_HOST_DIR}
+      #   target: /orthanc-logs
+      #   read_only: true
+      #   bind:
+      #     create_host_path: false
       # Fichier d'état dans un volume nommé : sans ça, un `docker compose up
       # --build` repartirait du curseur zéro et l'agent rejouerait tout
       # l'historique des /changes d'Orthanc.
