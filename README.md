@@ -117,9 +117,13 @@ appareil reste une décision humaine.
   contenir des données patient.
 - **Ce que le log ne donne pas** : ni le type d'examen, ni le port d'écoute
   de l'appareil (le port visible est un port source éphémère). Ils se
-  saisissent à l'enregistrement. Le port ne sert qu'au C-ECHO et aux envois
-  d'Orthanc *vers* l'appareil : sans lui, l'appareil peut déjà lire sa
-  worklist et envoyer ses images.
+  saisissent à l'enregistrement. Orthanc exige un port pour déclarer un
+  appareil, mais ne s'en sert que pour les connexions qu'il ouvre *vers*
+  lui (C-ECHO, renvoi d'images) : un appareil enregistré avec une IP et sans
+  port est donc déclaré par la boucle `modalités` sur le port DICOM standard
+  **104** (choix fait côté Totalis), ce qui suffit pour qu'il lise sa
+  worklist. Le C-ECHO, lui, n'est fiable qu'avec le vrai port. **Sans IP,
+  l'appareil n'est pas déclaré du tout et reste refusé.**
 - **Le log doit être sur disque.** Sous Windows c'est le cas par défaut
   (`C:\Program Files\Orthanc Server\Logs`) — le compte qui fait tourner
   l'agent doit pouvoir lire ce dossier. Sur un Mac lancé à la main, Orthanc
