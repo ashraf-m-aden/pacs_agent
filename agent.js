@@ -15,7 +15,7 @@ import { analyserLignes, agregerRejets, lireNouveautes } from "./orthancLog.js";
 import { lireEtat, ecrireEtat } from "./state.js";
 import { dateEtudeVersISO } from "./dicomDates.js";
 
-const VERSION_AGENT = "0.3.0";
+const VERSION_AGENT = "0.3.1";
 
 const totalis = creerClientTotalis(config);
 const orthanc = creerClientOrthanc(config);
@@ -73,6 +73,13 @@ export async function cycleEtudes() {
           orthancId: changement.ID,
           accessionNumber: study.MainDicomTags?.AccessionNumber,
           patientId: study.PatientMainDicomTags?.PatientID,
+          // Identité telle que l'APPAREIL l'a écrite dans l'image, pour que
+          // Totalis la compare au dossier (rien n'oblige un appareil à
+          // recopier la worklist). Toujours une chaîne, même vide : pour
+          // Totalis, un champ absent veut dire « agent trop ancien pour
+          // remonter l'identité », pas « l'appareil ne l'a pas renseignée ».
+          patientBirthDate: study.PatientMainDicomTags?.PatientBirthDate ?? "",
+          patientSex: study.PatientMainDicomTags?.PatientSex ?? "",
           dateEtude: dateEtudeVersISO(study.MainDicomTags?.StudyDate),
           modalites,
           remoteAet,

@@ -8,7 +8,7 @@ aucune connexion vers le réseau de l'hôpital :
 | Boucle | Cadence | Rôle |
 |---|---|---|
 | `worklist` | `POLL_INTERVAL_MS` (15 s) | publie la worklist dans Orthanc (fichiers `.wl`) |
-| `études` | 15 s | remonte vers Totalis les études reçues (`/changes` d'Orthanc) |
+| `études` | 15 s | remonte vers Totalis les études reçues (`/changes` d'Orthanc), avec la date de naissance et le sexe écrits par l'appareil dans l'image, que Totalis compare au dossier |
 | `commandes` | 15 s | exécute les actions demandées depuis l'interface (C-ECHO) |
 | `modalités` | `HEARTBEAT_INTERVAL_MS` (60 s) | reflète l'inventaire des appareils dans la config DICOM d'Orthanc |
 | `appareils refusés` | 60 s | relève dans le log d'Orthanc les appareils qu'il a refusés (si `ORTHANC_LOG_DIR` est défini) |
