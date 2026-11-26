@@ -45,6 +45,21 @@ décrit autant le côté Totalis que l'agent :
   disparaissent au redémarrage d'Orthanc : l'agent les redéclarerait au
   cycle suivant, mais entre les deux le site ne peut plus faire de C-ECHO et
   les tests de l'interface échouent sans raison apparente.
+- **`"RemoteAccessAllowed": true`** dans `orthanc.json` **si l'agent tourne
+  en Docker** (`docker compose up`, le chemin recommandé). Depuis son
+  conteneur, l'agent joint Orthanc par `host.docker.internal` : ce n'est pas
+  `localhost` du point de vue d'Orthanc. À `false` — la valeur livrée par
+  l'installeur — l'API REST ne répond qu'en local et **l'agent ne peut rien
+  faire** : ni lire `/changes`, ni déclarer une modalité, ni lancer un
+  C-ECHO. Lancé directement sur la machine (`npm start`), il n'a pas ce
+  problème. ⚠️ Passer ce réglage à `true` active l'authentification par
+  défaut (`AuthenticationEnabled` suit `RemoteAccessAllowed` quand il n'est
+  pas défini, et `RegisteredUsers` est commenté dans le fichier livré) :
+  sans utilisateur déclaré, l'API répond `401`. Voir le détail et les deux
+  sorties possibles dans le dépôt backend,
+  `docs/pacs-orthanc-reglages.md`.
+- **`Restart-Service Orthanc`** — le service s'appelle `Orthanc`, pas
+  `OrthancService`.
 - **Une IP et un port renseignés sur chaque modalité** dans Totalis (onglet
   PACS de « Gérer le centre »). L'agent ne déclare dans `DicomModalities`
   que les modalités qui ont les deux — et c'est cette déclaration qui
